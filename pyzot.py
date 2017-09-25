@@ -1,51 +1,62 @@
+import os, pypandoc, progressbar
 from pyzotero import zotero
-import pypandoc
-import os
-from subprocess import call
-import re
-import unicodedata
+from slugify import slugify
 
-# PDFs (Exzerpte) im Verzeichnis loeschen, damit nur aktuelle Exzerpte vorhanden
-filelist = [ file for file in os.listdir(".") if file.endswith(".pdf") or file.endswith(".mobi") or file.endswith(".docx") or file.endswith(".html") ]
-# for file in filelist:
-#	os.remove(file)
-	
+'''
+Greift auf exzerpierte Texte in Zotero zu unf generiert PDF und DOCX aus den Exzerpten.
+'''
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+paths = {
+	'tmp_dir': os.path.join(base_dir,"tmp"),
+	'output_dir': os.path.join(base_dir,"Output"), # Statdessen Google Drive implementieren
+}
+
+# Pfade erstellen
+for path in paths:
+	if not os.path.exists(paths[path]):
+		os.makedirs(paths[path])
+
+# Import Zotero API Key
 with open('zotero.key', 'r') as f:
     lines = f.readlines()
     consumer_key = lines[0].strip()
 
 zot = zotero.Zotero('4111725', 'user', consumer_key)
-items = zot.everything(zot.collection_items('86IBK7ME'))
+items = zot.collection_items('86IBK7ME', itemType='-note')
+items = [item for item in items if item['data']['itemType'] != 'attachment'] # Pyzotero unterstützt keine doppelten Searchqueries. (-note&-attachment)
 
-for item in items:
-	if item['data']['itemType'] != 'note' and item['data']['itemType'] != 'attachment':
-		zot.add_parameters(content='citation', style='chicago-fullnote-bibliography')
-		cites = zot.item(item['data']['key'])
-		f=open(item['data']['key']+'.html', 'w+')
-		print('<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head>\n<body>\n', file=f)
-		print('\n<h1>',cites[0].encode('utf-8'),'</h1>\n', file=f) 
-		# Titelzeite mit Referenz
-		children=zot.children(item['data']['key'])
-		for child in children:
-			if child['data']['itemType'] == 'note' and child['data']['note'].startswith('<p><strong>Yellow'):
-				c=child['data']['note'][child['data']['note'].find('\n')+1:]
-				# removes first line (Yellow Annotations ...)
-				print(c.encode('utf-8'), file=f) 
-				print('</body></html>', file=f)
-				f.close()
-				# Dateiname
-				def slugify(value):
-					value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
-					value = re.sub(r'[^\w\s-]', '', value).strip().lower()
-					return re.sub(r'[-\s]+', '-', value)
-				titel=slugify(item['data']['title'])
-				datei=item['meta']['creatorSummary'].replace(' ', '_')+'_'+titel
-				# PDF erzeugen
-				output = pypandoc.convert_file(item['data']['key']+'.html', 'latex', outputfile=datei+'.pdf',extra_args=['--latex-engine=xelatex'])
-				print(datei+'.pdf erzeugt')
-				# DOCX erzeugen
-				output = pypandoc.convert_file(item['data']['key']+'.html', 'docx', outputfile=datei+'.docx')
-				print(datei+'.docx erzeugt')
-#				#MOBI erzeugen
-#				call(['kindlegen', '-c2', '-o','%s.mobi' %datei, '%s.html' % item['data']['key']])
-#				print datei+'.mobi erzeugt'
+# Exzerpierte Dokumente durchlaufen
+bar = progressbar.ProgressBar()
+for item in bar(items):
+	title = "%s-%s" % (slugify(item['meta']['creatorSummary']), slugify(item['data']['title']))
+	html_path = os.path.join(paths['tmp_dir'],'%s.html' % title)
+
+	with open(html_path, 'w+') as f:
+		# Get Exzerpt Metadata > HTML-Datei
+		citation = zot.item(item['data']['key'], content='citation', style='chicago-fullnote-bibliography')
+		print('<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head>\n<body>\n\n<h1>',citation[0],'</h1>\n', file=f) # encode('utf-8')?
+
+		# Get Exzerpte > HTML-Datei
+		children = zot.children(item['data']['key'], itemType='note')
+		excerpts = [child['data']['note'].replace('<strong>Yellow Annotations</strong>','') for child in children if child['data']['note'].startswith('<p><strong>Yellow')]
+		for excerpt in excerpts:
+			print(excerpt,'</body></html>', file=f) # encode('utf-8')?
+
+	# PDF erzeugen
+	output = pypandoc.convert_file(html_path, 'latex', outputfile=os.path.join(paths['output_dir'],('%s.pdf' % title)), extra_args=['--latex-engine=xelatex'])
+	# print('%s.pdf erzeugt' % title)
+
+	# DOCX erzeugen
+	output = pypandoc.convert_file(html_path, 'docx', outputfile=os.path.join(paths['output_dir'],('%s.docx' % title)))
+	# print('%s.docx erzeugt\ln' % title)
+
+	# # MOBI erzeugen
+	# call(['kindlegen', '-c2', '-o','%s.mobi' % title, html_path])
+	# print('%s.mobi erzeugt' % title)
+
+# tmp aufräumen
+for f in os.listdir(paths['tmp_dir']):
+	os.remove(os.path.join(paths['tmp_dir'],f))
+
+print('Alles erledigt.')

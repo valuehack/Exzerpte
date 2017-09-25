@@ -3,8 +3,13 @@ chardet==3.0.4
 feedparser==5.2.1
 idna==2.6
 pathlib==1.0.1
+progressbar2==3.34.3
 pypandoc==1.4
+python-slugify==1.2.4
+python-utils==2.2.0
 pytz==2017.2
 Pyzotero==1.2.13
 requests==2.18.4
+six==1.11.0
+Unidecode==0.4.21
 urllib3==1.22
