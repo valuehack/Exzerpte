@@ -1,10 +1,13 @@
-import os, pypandoc, progressbar
-from pyzotero import zotero
-from slugify import slugify
+#!/usr/bin/env python
 
 '''
 Greift auf exzerpierte Texte in Zotero zu unf generiert PDF und DOCX aus den Exzerpten.
 '''
+
+import os, pypandoc, progressbar
+from pyzotero import zotero
+from slugify import slugify
+
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 paths = {
