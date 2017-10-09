@@ -47,7 +47,7 @@ for item in bar(items):
 			print(excerpt,'</body></html>', file=f) # encode('utf-8')?
 
 	# PDF erzeugen
-	output = pypandoc.convert_file(html_path, 'latex', outputfile=os.path.join(paths['output_dir'],('%s.pdf' % title)), extra_args=['--latex-engine=xelatex'])
+	output = pypandoc.convert_file(html_path, 'latex', outputfile=os.path.join(paths['output_dir'],('%s.pdf' % title)), extra_args=['-V', 'geometry:margin=2cm', '--latex-engine=xelatex'])
 	# print('%s.pdf erzeugt' % title)
 
 	# DOCX erzeugen
